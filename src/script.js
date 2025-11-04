@@ -1,86 +1,119 @@
 const gallery = document.getElementById('gallery');
-let currentPage = 1;
-const imagesPerRow = 4; // Кількість зображень в рядку
-const minGap = 3; // Мінімальний відступ
-const maxGap = 15; // Максимальний відступ
+const loadMoreBtn = document.getElementById('loadMore');
+const clearBtn = document.getElementById('clearGallery');
+const removeLastBtn = document.getElementById('removeLast');
+const reverseBtn = document.getElementById('reverseGallery');
+const shuffleBtn = document.getElementById('shuffleGallery');
 
+let currentPage = 1;
+const imagesPerLoad = 4;
+
+// Функція для отримання зображень з API
 async function fetchImages(page) {
-    const response = await fetch(`https://picsum.photos/v2/list?page=${page}&limit=${imagesPerRow * 1}`);
-    const images = await response.json();
-    displayImages(images);
+    try {
+        loadMoreBtn.disabled = true;
+        loadMoreBtn.textContent = 'Завантаження...';
+        
+        const response = await fetch(`https://picsum.photos/v2/list?page=${page}&limit=${imagesPerLoad}`);
+        
+        if (!response.ok) {
+            throw new Error('Помилка завантаження зображень');
+        }
+        
+        const images = await response.json();
+        displayImages(images);
+        
+    } catch (error) {
+        console.error('Помилка:', error);
+        alert('Не вдалося завантажити зображення. Спробуйте ще раз.');
+    } finally {
+        loadMoreBtn.disabled = false;
+        loadMoreBtn.textContent = 'Завантажити ще 4 картинки';
+    }
 }
 
+// Функція для відображення зображень
 function displayImages(images) {
     images.forEach(image => {
+        const imgWrapper = document.createElement('div');
+        imgWrapper.className = 'img-wrapper';
+        
         const imgElement = document.createElement('img');
         imgElement.src = image.download_url;
-        gallery.appendChild(imgElement);
+        imgElement.alt = `Фото від ${image.author}`;
+        imgElement.loading = 'lazy';
+        
+        // Додаємо обробник помилок для кожного зображення
+        imgElement.onerror = function() {
+            this.src = 'https://via.placeholder.com/300x200?text=Помилка+завантаження';
+        };
+        
+        imgWrapper.appendChild(imgElement);
+        gallery.appendChild(imgWrapper);
     });
-    
-    updateImageSizes(); // Оновлюємо розміри зображень після їх додавання
 }
 
-function updateImageSizes() {
-    const containerWidth = gallery.clientWidth; // Ширина контейнера
-    const gap = Math.min(Math.max(containerWidth * 0.03, minGap), maxGap); // Обчислюємо відступ
-    const totalGapWidth = gap * (imagesPerRow - 1); // Загальна ширина відступів
-    const imageWidth = (containerWidth - totalGapWidth) / imagesPerRow; // Ширина кожного зображення
-
-    const imgElements = gallery.getElementsByTagName('img');
-    for (let img of imgElements) {
-        img.style.width = `${imageWidth}px`; // Встановлюємо ширину
-        img.style.height = 'auto'; // Автоматична висота
-    }
+// Функція для перевірки чи галерея порожня
+function updateButtonStates() {
+    const images = gallery.getElementsByTagName('img');
+    const isEmpty = images.length === 0;
     
-    // Додати gap до стилю галереї
-    gallery.style.gap = `${gap}px`;
+    removeLastBtn.disabled = isEmpty;
+    reverseBtn.disabled = isEmpty;
+    shuffleBtn.disabled = isEmpty;
+    clearBtn.disabled = isEmpty;
 }
 
-// Завантажити початкові картинки
-fetchImages(currentPage);
+// Завантажити початкові картинки при завантаженні сторінки
+window.addEventListener('DOMContentLoaded', () => {
+    fetchImages(currentPage);
+});
 
 // Завантажити ще картинки
-document.getElementById('loadMore').addEventListener('click', async () => {
+loadMoreBtn.addEventListener('click', async () => {
     currentPage++;
     await fetchImages(currentPage);
+    updateButtonStates();
 });
 
 // Очистити галерею
-document.getElementById('clearGallery').addEventListener('click', () => {
-    gallery.innerHTML = '';
-    currentPage = 1; // Скидаємо номер сторінки
+clearBtn.addEventListener('click', () => {
+    if (confirm('Ви впевнені, що хочете очистити всю галерею?')) {
+        gallery.innerHTML = '';
+        currentPage = 1;
+        updateButtonStates();
+    }
 });
 
 // Видалити останню картинку
-document.getElementById('removeLast').addEventListener('click', () => {
-    const images = gallery.getElementsByTagName('img');
+removeLastBtn.addEventListener('click', () => {
+    const images = gallery.children;
     if (images.length > 0) {
         gallery.removeChild(images[images.length - 1]);
-        updateImageSizes(); // Оновлюємо розміри
+        updateButtonStates();
     }
 });
 
 // Перевернути галерею
-document.getElementById('reverseGallery').addEventListener('click', () => {
-    const images = Array.from(gallery.getElementsByTagName('img'));
+reverseBtn.addEventListener('click', () => {
+    const images = Array.from(gallery.children);
     gallery.innerHTML = '';
     images.reverse().forEach(img => gallery.appendChild(img));
-    updateImageSizes(); // Оновлюємо розміри
 });
 
-// Перемішати галерею
-document.getElementById('shuffleGallery').addEventListener('click', () => {
-    const images = Array.from(gallery.getElementsByTagName('img'));
+// Перемішати галерею (додатковий функціонал)
+shuffleBtn.addEventListener('click', () => {
+    const images = Array.from(gallery.children);
     gallery.innerHTML = '';
+    
+    // Алгоритм Fisher-Yates для перемішування
     for (let i = images.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [images[i], images[j]] = [images[j], images[i]];
     }
+    
     images.forEach(img => gallery.appendChild(img));
-    updateImageSizes(); // Оновлюємо розміри
 });
 
-// Оновлюємо розміри зображень при зміні розміру вікна
-window.addEventListener('resize', () => {
-    updateImageSizes();
-});
+// Оновлюємо стан кнопок при завантаженні
+updateButtonStates();
